@@ -98,3 +98,5 @@ Para usar iCosM8, sigue estos pasos:
 ## 📄 Licencia
 
 Este proyecto está bajo la licencia [Tu Tipo de Licencia, ej. MIT License]. Consulta el archivo `LICENSE` para más detalles.
+
+@Cosm3No1de
