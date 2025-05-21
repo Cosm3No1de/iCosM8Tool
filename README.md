@@ -1,6 +1,6 @@
 # iCosM8 V3.8 - Herramienta de Bypass y Utilidades iOS
 
-![Captura de pantalla de iCosM8 V3.8](/assets/img.png)
+![Captura de pantalla de iCosM8 V3.8](/img.png)
 
 ## 🚀 Descripción
 
