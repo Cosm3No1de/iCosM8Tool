@@ -65,8 +65,7 @@ class iCosM8ToolGUI:
         self.setup_styles()
 
         # Inicializar gestores de lógica de negocio (inyección de dependencias)
-        # Se pasa `None` para los widgets que aún no han sido creados.
-        # Estos widgets se asignarán después de self.create_widgets()
+        # Se pasa `self.style` al DeviceManager para que pueda usarlo para la etiqueta de señal.
         self.device_manager = DeviceManager(self.logger, self.signal_status, self.style)
         self.auth_manager = AuthManager(self.logger, self.username, self.credits)
         self.operations = IOSOperations(self.logger, self.device_manager, self.auth_manager)
@@ -79,7 +78,7 @@ class iCosM8ToolGUI:
         # AHORA que los widgets existen, asignar sus referencias reales a los managers
         # Esto es crucial para que los managers puedan actualizar la GUI.
         self.logger.set_text_widget(self.resultado_text)
-        self.device_manager.set_signal_label_widget(self.signal_label)
+        self.device_manager.set_signal_label_widget(self.signal_label) # <--- ¡IMPORTANTE!
         self.auth_manager.set_auth_status_label(self.auth_status_label)
         self.operations.set_progress_widgets(self.progress_bar, self.progress_percentage_label)
 
@@ -91,6 +90,7 @@ class iCosM8ToolGUI:
         # para no bloquear la GUI durante el inicio.
         threading.Thread(target=self.device_manager.check_dependencies).start()
         # Iniciar la primera obtención de info de dispositivo después de que los widgets estén listos
+        # Esto asegura que la información del dispositivo se intente obtener al inicio
         threading.Thread(target=lambda: self.device_manager.get_device_info(self.actualizar_labels_device_info)).start()
 
         # Abrir la ventana de logs al inicio
@@ -585,115 +585,80 @@ class iCosM8ToolGUI:
             self.resultado_text.configure(state='normal')
             self.resultado_text.delete(1.0, tk.END)
             self.resultado_text.configure(state='disabled')
+            self.logger.log("Logs limpiados.", "info")
 
     def load_icons(self):
-        """
-        Carga íconos o imágenes para la aplicación.
-        Aquí se puede implementar la lógica de carga real de imágenes
-        utilizando la librería Pillow.
-        """
-        self.logger.log("Cargando íconos (función placeholder)...", "info")
-        # Ejemplo:
-        # try:
-        #     icon_path = os.path.join(os.path.dirname(__file__), "assets", "app_icon.png")
-        #     self.icon_image = ImageTk.PhotoImage(Image.open(icon_path))
-        #     self.root.iconphoto(True, self.icon_image) # Para establecer el icono de la ventana
-        # except FileNotFoundError:
-        #     self.logger.log("Advertencia: No se encontró el archivo de ícono 'app_icon.png'.", "warning")
-        # except Exception as e:
-        #     self.logger.log(f"Error al cargar ícono: {e}", "error")
-        pass
+        """Carga y gestiona los íconos de la aplicación."""
+        # Puedes cargar íconos aquí si los tienes
+        # self.icon_name = ImageTk.PhotoImage(Image.open("path/to/icon.png").resize((16, 16)))
+        pass # No hay íconos definidos en este ejemplo
 
     def iniciar_sesion(self):
-        """
-        Maneja el evento de inicio de sesión, delegando la lógica al AuthManager.
-        Limpia el campo de contraseña si el inicio de sesión es exitoso.
-        """
+        """Maneja el inicio de sesión del usuario."""
         username = self.login_username_entry_panel.get()
         password = self.login_password_entry_panel.get()
-        # El callback se ejecuta en el hilo principal después de la simulación de autenticación
-        self.auth_manager.login(
-            username, password, 
-            lambda success: self.root.after(0, lambda: self.login_password_entry_panel.delete(0, tk.END) if success else None)
-        )
+        threading.Thread(target=self.auth_manager.login, args=(username, password)).start()
 
     def open_register_window_from_login(self):
-        """Abre la ventana de registro de usuario."""
-        self.create_register_window()
+        """Abre la ventana de registro desde el panel de inicio de sesión."""
+        self.open_register_window()
 
-    def create_register_window(self):
-        """Crea y muestra la ventana de registro de usuario."""
+    def open_register_window(self):
+        """Crea y muestra la ventana de registro de nuevos usuarios."""
         register_window = tk.Toplevel(self.root)
-        register_window.title("Registro de Usuario")
-        register_window.geometry("300x350")
-        register_window.resizable(False, False)
-        
+        register_window.title("Registrar Nuevo Usuario")
+        register_window.geometry("400x300")
+        register_window.grab_set() # Hacerla modal
+
         register_frame = ttk.Frame(register_window)
-        register_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Campos de entrada para el registro
-        ttk.Label(register_frame, text="Nombre de Usuario:", style="RegisterPanel.TLabel").pack(pady=2, anchor="w")
-        self.register_username_entry = ttk.Entry(register_frame, style="RegisterPanel.TEntry")
-        self.register_username_entry.pack(fill="x", pady=2)
-        
-        ttk.Label(register_frame, text="Correo Electrónico:", style="RegisterPanel.TLabel").pack(pady=2, anchor="w")
-        self.register_email_entry = ttk.Entry(register_frame, style="RegisterPanel.TEntry")
-        self.register_email_entry.pack(fill="x", pady=2)
-        
-        ttk.Label(register_frame, text="Cuenta de Instagram:", style="RegisterPanel.TLabel").pack(pady=2, anchor="w")
-        self.register_instagram_entry = ttk.Entry(register_frame, style="RegisterPanel.TEntry")
-        self.register_instagram_entry.pack(fill="x", pady=2)
-        
-        ttk.Label(register_frame, text="Contraseña:", style="RegisterPanel.TLabel").pack(pady=2, anchor="w")
-        self.register_password_entry = ttk.Entry(register_frame, show="*", style="RegisterPanel.TEntry")
-        self.register_password_entry.pack(fill="x", pady=2)
-        
-        register_button = ttk.Button(register_frame, text="Registrar", command=self.registrar_usuario, style="RegisterPanel.TButton")
+        register_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        ttk.Label(register_frame, text="Nombre de Usuario:", style="RegisterPanel.TLabel").pack(pady=5, anchor="w")
+        new_username_entry = ttk.Entry(register_frame, style="RegisterPanel.TEntry")
+        new_username_entry.pack(fill="x", pady=2)
+
+        ttk.Label(register_frame, text="Contraseña:", style="RegisterPanel.TLabel").pack(pady=5, anchor="w")
+        new_password_entry = ttk.Entry(register_frame, show="*", style="RegisterPanel.TEntry")
+        new_password_entry.pack(fill="x", pady=2)
+
+        ttk.Label(register_frame, text="Confirmar Contraseña:", style="RegisterPanel.TLabel").pack(pady=5, anchor="w")
+        confirm_password_entry = ttk.Entry(register_frame, show="*", style="RegisterPanel.TEntry")
+        confirm_password_entry.pack(fill="x", pady=2)
+
+        def register_user_action():
+            username = new_username_entry.get()
+            password = new_password_entry.get()
+            confirm_password = confirm_password_entry.get()
+            # Delegar la lógica de registro al AuthManager
+            threading.Thread(target=lambda: self.auth_manager.register(username, password, confirm_password, register_window)).start()
+
+        register_button = ttk.Button(register_frame, text="Registrar", command=register_user_action, style="Primary.TButton")
         register_button.pack(pady=10, fill="x")
-        
-        self.registro_mensaje_label = ttk.Label(register_frame, text="", style="RegisterPanel.TLabel")
-        self.registro_mensaje_label.pack(pady=5)
 
-    def registrar_usuario(self):
-        """
-        Maneja el evento de registro de usuario, delegando la lógica al AuthManager.
-        Proporciona retroalimentación en la etiqueta de mensaje de registro.
-        """
-        new_username = self.register_username_entry.get()
-        new_email = self.register_email_entry.get()
-        new_instagram = self.register_instagram_entry.get()
-        new_password = self.register_password_entry.get()
-        
-        if not all([new_username, new_email, new_instagram, new_password]):
-            self.registro_mensaje_label.config(text="Todos los campos son obligatorios.", foreground=COLORS["danger"])
-            return
-        
-        # El callback se ejecuta en el hilo principal después de la simulación de registro
-        self.auth_manager.register(
-            new_username, new_email, new_instagram, new_password,
-            lambda success: self.root.after(0, lambda: self.registro_mensaje_label.config(
-                text="Registro exitoso!" if success else "Fallo en el registro.",
-                foreground=COLORS["secondary"] if success else COLORS["danger"]
-            ))
-        )
+        # Asegurarse de que el tema se aplica a la nueva ventana
+        register_window.bind("<Map>", lambda event: self.apply_theme_to_toplevel(register_window))
 
-    def browse_ramdisk(self):
-        """Permite al usuario seleccionar un archivo Ramdisk (no usado directamente en la GUI actual)."""
-        file_path = filedialog.askopenfilename(
-            title="Seleccionar archivo Ramdisk",
-            filetypes=[("Disk Image Files", "*.dmg")]
-        )
-        if file_path:
-            self.ramdisk_path.set(file_path)
-            self.logger.log(f"Ruta de Ramdisk seleccionada: {file_path}", "info")
-            # Podrías agregar aquí un botón o una lógica para activar operaciones de ramdisk
+    def apply_theme_to_toplevel(self, toplevel_window: tk.Toplevel):
+        """Aplica el tema actual a una ventana Toplevel recién creada."""
+        bg_color = COLORS["dark"] if self.theme == "dark" else COLORS["light"]
+        fg_color = COLORS["light"] if self.theme == "dark" else COLORS["text"]
+        
+        toplevel_window.configure(bg=bg_color)
+        for widget in toplevel_window.winfo_children():
+            if isinstance(widget, ttk.Frame) or isinstance(widget, ttk.LabelFrame):
+                widget.configure(style="TFrame" if isinstance(widget, ttk.Frame) else "TLabelframe")
+                for sub_widget in widget.winfo_children():
+                    if isinstance(sub_widget, ttk.Label):
+                        sub_widget.configure(style="RegisterPanel.TLabel")
+                    elif isinstance(sub_widget, ttk.Entry):
+                        sub_widget.configure(style="RegisterPanel.TEntry")
+                    elif isinstance(sub_widget, ttk.Button):
+                        sub_widget.configure(style="RegisterPanel.TButton")
+            elif isinstance(widget, ttk.Label):
+                widget.configure(style="RegisterPanel.TLabel")
+            elif isinstance(widget, ttk.Entry):
+                widget.configure(style="RegisterPanel.TEntry")
+            elif isinstance(widget, ttk.Button):
+                widget.configure(style="RegisterPanel.TButton")
 
-    def boot_ramdisk(self):
-        """Simula el proceso de boot del Ramdisk seleccionado (ejemplo de cómo se llamaría)."""
-        ramdisk_file = self.ramdisk_path.get()
-        if not ramdisk_file:
-            messagebox.showerror("Error", "Por favor, selecciona un archivo Ramdisk.")
-            self.logger.log("Error: No se seleccionó un archivo Ramdisk para el boot.", "error")
-            return
-        # Delega la operación al módulo de operaciones
-        self.operations.boot_ramdisk(ramdisk_file)
+# El bloque if __name__ == "__main__": permanece en main.py para iniciar la aplicación.
